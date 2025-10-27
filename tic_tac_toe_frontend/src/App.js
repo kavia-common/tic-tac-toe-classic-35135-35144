@@ -52,7 +52,7 @@ function Cell({ value, onClick, isWinning, index, disabled }) {
 }
 
 // Board component
-function Board({ squares, onPlay, winningLine, gameOver, nextPlayer }) {
+function Board({ squares, onPlay, winningLine, gameOver }) {
   // PUBLIC_INTERFACE
   const renderCell = (i) => {
     const isWinning = winningLine.includes(i);
@@ -82,17 +82,18 @@ function Board({ squares, onPlay, winningLine, gameOver, nextPlayer }) {
 // PUBLIC_INTERFACE
 function App() {
   /**
-   * This is the main Tic Tac Toe App.
-   * - Renders a centered 3x3 board.
+   * Main Tic Tac Toe App with move history.
+   * - Renders a 3x3 board.
    * - Tracks alternating X/O turns.
    * - Detects winner/draw and highlights winning line.
-   * - Provides Reset/New Game and Undo (optional history).
-   * - Accessible via keyboard (Tab + Enter/Space) and announces status via aria-live.
+   * - Provides Reset/New Game, Undo/Redo, and move list to jump to any step.
+   * - Accessible via keyboard and announces status via aria-live.
    */
-  const [history, setHistory] = useState([Array(9).fill(null)]);
-  const [step, setStep] = useState(0);
-  const [xIsNext, setXIsNext] = useState(true);
+  const [history, setHistory] = useState([Array(9).fill(null)]); // array of board snapshots
+  const [step, setStep] = useState(0); // current step index into history
+
   const currentSquares = history[step];
+  const xIsNext = useMemo(() => step % 2 === 0, [step]); // derive next player from step
 
   const { winner, line } = useMemo(() => calculateWinner(currentSquares), [currentSquares]);
   const movesPlayed = currentSquares.filter(Boolean).length;
@@ -110,30 +111,54 @@ function App() {
   }, []);
 
   // PUBLIC_INTERFACE
-  const handlePlay = (i) => {
+  function handlePlay(i) {
+    /**
+     * Handle a move:
+     * - ignore if occupied or game over
+     * - push new board snapshot
+     * - trim future history if we are time-traveling (step < history.length - 1)
+     */
     if (currentSquares[i] || winner) return;
+
     const next = currentSquares.slice();
     next[i] = xIsNext ? 'X' : 'O';
-    const nextHistory = history.slice(0, step + 1).concat([next]);
+
+    const truncated = history.slice(0, step + 1);
+    const nextHistory = truncated.concat([next]);
     setHistory(nextHistory);
     setStep(step + 1);
-    setXIsNext(!xIsNext);
-  };
+  }
 
   // PUBLIC_INTERFACE
-  const handleReset = () => {
+  function handleReset() {
+    /** Reset game to initial state */
     setHistory([Array(9).fill(null)]);
     setStep(0);
-    setXIsNext(true);
-  };
+  }
 
   // PUBLIC_INTERFACE
-  const handleUndo = () => {
-    if (step > 0 && !winner) {
+  function handleUndo() {
+    /** Go back one step if possible */
+    if (step > 0) {
       setStep(step - 1);
-      setXIsNext(!xIsNext);
     }
-  };
+  }
+
+  // PUBLIC_INTERFACE
+  function handleRedo() {
+    /** Go forward one step if possible */
+    if (step < history.length - 1) {
+      setStep(step + 1);
+    }
+  }
+
+  // PUBLIC_INTERFACE
+  function jumpTo(moveIndex) {
+    /** Jump to a specific move index */
+    if (moveIndex >= 0 && moveIndex < history.length) {
+      setStep(moveIndex);
+    }
+  }
 
   const statusText = winner
     ? `Winner: ${winner}`
@@ -157,8 +182,30 @@ function App() {
             onPlay={handlePlay}
             winningLine={line}
             gameOver={gameOver}
-            nextPlayer={xIsNext ? 'X' : 'O'}
           />
+
+          {/* Move history list */}
+          <nav aria-label="Move history" className="history">
+            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+              {history.map((s, move) => {
+                const label = move === 0 ? 'Go to start' : `Go to move #${move}`;
+                const isCurrent = move === step;
+                return (
+                  <li key={move}>
+                    <button
+                      className={`btn ${isCurrent ? 'primary' : 'secondary'}`}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      aria-label={label}
+                      onClick={() => jumpTo(move)}
+                      style={{ width: '100%', textAlign: 'left' }}
+                    >
+                      {isCurrent ? '• ' : ''}{label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
         </main>
 
         <footer className="controls">
@@ -168,10 +215,18 @@ function App() {
           <button
             className="btn secondary"
             onClick={handleUndo}
-            disabled={step === 0 || winner}
+            disabled={step === 0}
             aria-label="Undo last move"
           >
             Undo
+          </button>
+          <button
+            className="btn secondary"
+            onClick={handleRedo}
+            disabled={step >= history.length - 1}
+            aria-label="Redo next move"
+          >
+            Redo
           </button>
         </footer>
       </div>

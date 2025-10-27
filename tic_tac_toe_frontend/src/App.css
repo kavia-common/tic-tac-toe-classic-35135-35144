@@ -185,6 +185,20 @@ body {
   flex-wrap: wrap;
 }
 
+.history {
+  margin-top: 16px;
+  border: var(--pixel) solid #1f2937;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff, #f3f4f6);
+  box-shadow: 0 calc(var(--pixel)) 0 #1f2937;
+  padding: 10px;
+}
+
+.history .btn {
+  width: 100%;
+  text-align: left;
+}
+
 .btn {
   font-weight: 800;
   letter-spacing: 0.4px;
